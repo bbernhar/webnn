@@ -849,6 +849,161 @@ Its <a>default allowlist</a> is <code>'self'</code>.
   </div>
 </details>
 
+## {{MLBuffer}} interface ## {#api-mlbuffer}
+
+Objects implementing the {{MLBuffer}} interface represents a block of memory can be used in GPU operations.
+
+<script type=idl>
+typedef unsigned long long MLSize64Out; 
+
+[SecureContext, Exposed=(Window, DedicatedWorker)]
+interface MLBuffer {
+  readonly attribute MLSize64Out size;
+};
+</script>
+
+<div class="internal-slots">
+{{MLBuffer}} has the following internal slots:
+  <dl dfn-type=attribute dfn-for="MLBuffer">
+    : <dfn>size</dfn>
+    ::
+        The length of the {{MLBuffer}} allocation in bytes.
+
+    : <dfn>\[[internals]]</dfn>, of type [=buffer internals=], readonly, {{MLBuffer/[[internals]]|override}}
+    ::
+  <dl>
+</div>
+
+{{MLBuffer}}'s is <dfn dfn>buffer internals</dfn>.
+
+<dl dfn-type=dfn dfn-for="buffer internals">
+    : <dfn>state</dfn>
+    ::
+        The current internal state of the buffer:
+
+        <dl dfn-type=dfn dfn-for="buffer internals/state">
+            : "<dfn>valid</dfn>"
+            ::
+                The buffer may be used in queue operations (unless it is [=invalid=]).
+
+            : "<dfn>destroyed</dfn>"
+            ::
+                The buffer may not be used in any operations due to being {{MLBuffer/destroy()}}ed.
+        </dl>
+</dl>
+
+### Buffer destruction ### {#api-mlbuffer-destruction}
+Destroys the {{MLBuffer}}.
+
+<script type=idl>
+partial interface MLBuffer {
+  undefined destroy();
+};
+</script>
+
+<div>
+    **Returns:** {{undefined}}.
+</div>
+
+<details open algorithm>
+  <summary>
+    The <dfn method for=MLBuffer>destroy()</dfn> method steps are:
+  </summary>
+  <div class=algorithm-steps>
+    // TODO
+    1. Set {{MLBuffer/[[internals]]}}.[=buffer internals/state=] to "[=buffer internals/state/destroyed=]".
+  </div>
+</details>
+
+### Uploading data from MLBuffer ### {#api-mlcontext-upload}
+
+Asynchronously carries out uploading of data to a MLBuffer on the GPU timeline for the dispatch of GPU workload on the command queue.
+The asynchronous nature of these calls avoids blocking the calling thread while the computation for result is ongoing.
+
+#### {{MLContext/writeBuffer(dstBuffer, dstOffset, srcData, srcOffset, srcSize)}} #### {#api-mlcontext-upload-async}
+
+<script type=idl>
+partial interface MLContext {
+  undefined writeBuffer(
+    MLBuffer dstBuffer, 
+    MLSize64 dstOffset, 
+    AllowSharedBufferSource srcData,
+    optional MLSize64 srcOffset = 0,
+    optional MLSize64 srcSize);
+};
+</script>
+
+<div>
+    **Arguments:**
+      - *dstBuffer*: an {{MLBuffer}}. The {{MLBuffer}} to write to.
+      - *dstOffset*: an {{MLSize64}}. Offset in bytes into *dstBuffer* to begin writing at.
+      - *srcData*: an {{AllowSharedBufferSource}}. Data to write into *dstBuffer*.
+      - *srcOffset*: an optional {{MLSize64}}. Offset into the data to begin writing from. Given in elements if data is a TypedArray and bytes otherwise.
+      - *srcSize*: an optional {{MLSize64}}. Size of content to write from data to buffer. Given if data is a TypedArray and bytes otherwise.
+
+    **Returns:** {{undefined}}.
+</div>
+
+<details open algorithm>
+  <summary>
+      The <dfn method for=MLContext>writeBuffer(|dstBuffer|, |srcOffset|, |srcData|, |srcSize|)</dfn> method steps are:
+  </summary>
+  <div class=algorithm-steps>
+    1. If any of the following requirements are unmet, then [=exception/throw=] a "{{OperationError}}" {{DOMException}}.
+          <div class=validusage>
+            1. |dstBuffer| is valid to use with this {{MLContext}}
+            1. |dstBuffer|.{{MLBuffer/[[internals]]}}.[=buffer internals/state=] is "[=buffer internals/state/valid=]".
+            1. |srcSize| &ge; 0..
+            1. |srcOffset| + |srcSize|, converted to bytes, &le; |dstBuffer|.size bytes.
+          </div>
+    1. If |srcData| is an {{ArrayBuffer}} or {{DataView}}, let the element type be "byte". Otherwise, |srcData| is a TypedArray; let the element type be the type of the TypedArray.
+    // TODO
+  </div>
+</details>
+
+### Downloading data from MLBuffer ### {#api-mlcontext-download}
+
+#### {{MLContext/readBuffer(srcBuffer, srcOffset, srcSize)}} #### {#api-mlcontext-download-async}
+
+<script type=idl>
+partial interface MLContext {
+  Promise<ArrayBuffer> readBuffer(
+    MLBuffer srcBuffer, 
+    MLSize64 srcOffset,
+    MLSize64 srcSize);
+};
+</script>
+
+<div>
+    **Arguments:**
+      - *srcBuffer*: an {{MLBuffer}}. The {{MLBuffer}} to read from.
+      - *srcOffset*: an {{MLSize64}}. Offset into the data to begin reading from.
+      - *srcSize*: an {{MLSize64}}. Size of content to read from *srcBuffer* to data.
+
+    **Returns:** Promise<{{ArrayBuffer}}>.
+</div>
+
+#### {{MLContext/readBufferSync(srcBuffer, srcOffset, srcSize)}} #### {#api-mlcontext-download-sync}
+
+<script type=idl>
+partial interface MLContext {
+  [Exposed=(DedicatedWorker)]
+  ArrayBuffer readBufferSync(
+    MLBuffer srcBuffer, 
+    MLSize64 srcOffset,
+    MLSize64 srcSize);
+};
+</script>
+
+<div>
+    **Arguments:**
+      - *srcBuffer*: an {{MLBuffer}}. The {{MLBuffer}} to read from.
+      - *srcOffset*: an {{MLSize64}}. Offset into the data to begin reading from.
+      - *srcSize*: an {{MLSize64}}. Size of content to read from *srcBuffer* to data.
+
+    **Returns:** {{ArrayBuffer}}.
+</div>
+
 ## {{MLActivation}} interface ## {#api-mlactivation}
 
 Objects implementing the {{MLActivation}} interface represent activation function types.
@@ -1106,6 +1261,21 @@ When the {{[[contextType]]}} is set to [=default-context|default=] with the {{ML
   </div>
 </details>
 
+### {{MLContext/createBuffer(descriptor)}} ### {#api-mlcontext-mlbuffer-creation}
+
+<script type=idl>
+typedef unsigned long long MLSize64;
+
+dictionary MLBufferDescriptor {
+  required MLSize64 size;
+};
+
+partial interface MLContext {
+  MLBuffer createBuffer(MLBufferDescriptor descriptor);
+};
+</script>
+
+
 ### Synchronous Execution ### {#api-mlcontext-sync-execution}
 Synchronously carries out the computational workload of a compiled graph {{MLGraph}} on the calling thread, which must be a worker thread, to produce results as defined by the operations in the graph. This method of execution requires an {{MLContext}} created with {{MLContextOptions}}. Otherwise, it [=exception/throws=] an "{{OperationError}}" {{DOMException}}.
 
@@ -1330,6 +1500,26 @@ partial interface MLContext {
     // shares the same backing memory allocation.
   </pre>
 </details>
+</div>
+
+### Asynchronous Execution using MLBuffer ### {#api-mlcontext-async-execution-dispatch}
+
+<script type=idl>
+typedef record<DOMString, MLBufferResourceView> MLNamedBufferResourceViews;
+
+partial interface MLContext {
+  undefined dispatch(
+      MLGraph graph, MLNamedBufferResourceViews inputs, MLNamedBufferResourceViews outputs);
+};
+</script>
+
+<div>
+    **Arguments:**
+      - *graph*: an {{MLGraph}}. The compiled graph to be executed.
+      - *inputs*: an {{MLNamedBufferResourceViews}}. The resources of inputs.
+      - *outputs*: an {{MLNamedBufferResourceViews}}. The pre-allocated resources of required outputs.
+  
+      **Returns:** {{undefined}}.
 </div>
 
 ### WebGPU Interoperability ### {#api-mlcontext-webgpu-interop}
